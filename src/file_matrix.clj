@@ -1,3 +1,5 @@
+(use '(incanter core processing))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; project file functions
 

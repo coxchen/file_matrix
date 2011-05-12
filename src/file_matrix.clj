@@ -36,50 +36,66 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;; drawing functions
 
-(def cube-w 7)
+(def cube-w 10)
+(def cube-shift 15)
+(def h-margin 2)
 
-(defn draw-stat [sktch the-color pos-y file-count]
-   (let [pos-x 200
-         cube-w 7]
-     (doto sktch
-       (fill the-color)
-       (rect pos-x pos-y cube-w cube-w)
-       (fill 0)
-       (text file-count (+ 10 pos-x) (+ 10 pos-y)))))
+(def stroke-colors
+     {:DEFAULT (color 50)
+      :HOVER (color 255 255 0)})
+
+(def file-colors
+     {:SINK (color 255 0 0)
+      :SCANNED (color 220 220 0)
+      :EP (color 0 0 255)
+      :CLEAN (color 255 255 255)})
+
+(defn draw-stat [sktch pos-x pos-y the-color file-count]
+  (doto sktch
+    (fill the-color)
+    (rect pos-x pos-y cube-w cube-w)
+    (fill 0)
+    (text file-count (+ cube-shift pos-x) (+ cube-w pos-y))))
 
 (defn draw-file-stats
-  [sktch
-   both-sink-count
-   single-sink-count
-   inter-file-count
-   clean-file-count]
-  (doto sktch
-    (draw-stat (color 255 0 0) 20 both-sink-count)
-    (draw-stat (color 200 200 0) 40 single-sink-count)
-    (draw-stat (color 0 0 255) 60 inter-file-count)
-    (draw-stat (color 255 255 255) 80 clean-file-count)))
+  [sktch the-file-stats file-map-x]
+  (doseq [stat the-file-stats]
+    (apply draw-stat sktch (+ 50 file-map-x) stat)))
 
 (def file-x (ref 20))
 (def file-y (ref 20))
+(def mouseX (ref nil))
+(def mouseY (ref nil))
+(def hover-file (ref ""))
 
-(defn draw-file-row [sktch file-row]
+(defn mouse-over? [x1 y1 x2 y2]
+  (and (> @mouseX x1)
+       (< @mouseX x2)
+       (> @mouseY y1)
+       (< @mouseY y2)))
+
+(defn draw-file-row [sktch file-row file-cube-color]
   (doseq [a-file file-row]
-    (if (in? sink-files a-file)
-      (do
-        (if (in? both-sink-files a-file)
-          (fill sktch 255 0 0)
-          (fill sktch 200 200 0)))
-      (if (not (in? scan-file-names a-file))
-        (fill sktch 255)
-        (fill sktch 0 0 255)))
+    (fill sktch (file-cube-color a-file))
     (rect sktch @file-x @file-y cube-w cube-w)
-    (dosync (ref-set file-x (+ 10 @file-x)))))
+    (if (mouse-over? @file-x @file-y (+ @file-x cube-w) (+ @file-y cube-w))
+      (dosync
+       (ref-set hover-file a-file)
+       (doto sktch
+	 (no-fill)
+	 (stroke (:HOVER stroke-colors))
+	 (rect (- @file-x h-margin)
+	       (- @file-y h-margin)
+	       (+ cube-w (* 2 h-margin))
+	       (+ cube-w (* 2 h-margin)))
+	 (stroke (:DEFAULT stroke-colors)))))
+    (dosync (ref-set file-x (+ cube-shift @file-x)))))
 
-(defn draw-file-map [sktch the-file-map]
+(defn draw-file-map [sktch the-file-map file-cube-color]
   (doseq [file-row the-file-map]
-    (draw-file-row sktch file-row)
+    (draw-file-row sktch file-row file-cube-color)
     (dosync (ref-set file-x 20)
-            (ref-set file-y (+ 10 @file-y)))))
+            (ref-set file-y (+ cube-shift @file-y)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; preparing what we need
@@ -123,6 +139,10 @@
       proj-file-names
       (ceil (sqrt (count proj-file-names)))))
 
+(defn change-cursor [sktch]
+  (if (= @hover-file "")
+    (cursor sktch 0)
+    (cursor sktch 12)))
 
 (let [sktch (sketch
 	     (setup []
@@ -141,7 +161,7 @@
                        (count both-sink-files)
                        (- (count sink-files) (count both-sink-files))
                        inter-file-count
-                       clean-file-count
-                       )
+                       clean-file-count)
+		      (change-cursor)
                     )))]
   (view sktch :size [300 280]))
